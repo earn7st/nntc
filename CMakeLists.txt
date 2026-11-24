@@ -141,9 +141,12 @@ if(NOT CMAKE_CUDA_COMPILER)
                     "is usually too old) with /usr/local/cuda/bin on the PATH. Then re-configure with "
                     "-UCMAKE_CUDA_COMPILER, since the miss is cached")
 else()
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES "75;80;86;89;90;120" CACHE STRING "CUDA target architectures")
+    endif()
     enable_language(CUDA)
 
-    # sm_120 needs CUDA 12.8 or newer; the compiled floor is compute capability 8.0.
+    # sm_120 needs CUDA 12.8 or newer. Include Turing (7.5) in the default build.
     if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 12.8)
         message(FATAL_ERROR "CUDA ${CMAKE_CUDA_COMPILER_VERSION} cannot target sm_120; configure with a CUDA 12.8+ "
                             "toolset")
@@ -166,9 +169,18 @@ if(CMAKE_CUDA_COMPILER)
     target_compile_definitions(nntc_encode PRIVATE NNTC_CUDA)
     target_link_libraries(nntc_encode PRIVATE CUDA::cudart_static)
 
+    # Keep an explicit standard CMake architecture selection, including workstation-only builds.
+    if(DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(_nntc_arch_default "${CMAKE_CUDA_ARCHITECTURES}")
+    else()
+        set(_nntc_arch_default "75;80;86;89;90;120")
+    endif()
+    set(NNTC_CUDA_ARCHITECTURES "${_nntc_arch_default}" CACHE STRING "CUDA architectures for the encoder")
+    message(STATUS "NNTC CUDA architectures: ${NNTC_CUDA_ARCHITECTURES}")
+
     # Deliberately no --use_fast_math: the kernels are expected to agree with a reference evaluation to float rounding.
     set_target_properties(nntc_encode PROPERTIES
-        CUDA_ARCHITECTURES "80;86;89;90;120"
+        CUDA_ARCHITECTURES "${NNTC_CUDA_ARCHITECTURES}"
         CUDA_STANDARD 17
         CUDA_STANDARD_REQUIRED ON
         CUDA_SEPARABLE_COMPILATION OFF)

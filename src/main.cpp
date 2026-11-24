@@ -1497,9 +1497,11 @@ static bool validate_options(Options& o)
 static std::string cuda_refusal(const Options& o, const DeviceInfo& info)
 {
     char why[512];
+    if (!info.error.empty())
+        return info.error;
     if (info.major > 0)
         snprintf(why, sizeof(why), "CUDA device %d is '%s', compute capability %d.%d, and this encoder is compiled for "
-                 "8.0 and above", o.device, info.name.c_str(), info.major, info.minor);
+                 "a different CUDA architecture (configure NNTC_CUDA_ARCHITECTURES)", o.device, info.name.c_str(), info.major, info.minor);
     else if (!info.error.empty())
         snprintf(why, sizeof(why), "%s", info.error.c_str());
     else

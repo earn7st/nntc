@@ -73,6 +73,9 @@
 // The device context
 // ---------------------------------------------------------------------------------------------------------------
 
+// Queried before allocation to reject incompatible builds with an actionable diagnostic.
+__global__ void nntc_architecture_probe() {}
+
 bool device_select(int index, DeviceInfo& info)
 {
     // A refusal leaves a whole reason in info.error for the caller's WARNING or ERROR. The common ones are said in plain
@@ -119,13 +122,20 @@ bool device_select(int index, DeviceInfo& info)
     err = cudaGetDeviceProperties(&prop, index);
     if (err != cudaSuccess)
         return refused("cudaGetDeviceProperties", err);
-    // The compiled floor is compute capability 8.0 (CMakeLists.txt). A pre-Ampere device would otherwise fail at the
-    // first launch with "no kernel image is available", which says nothing about why, so it is refused here, with its
-    // name and capability left in info for the caller to report (a WARNING where it falls back, an ERROR where not).
     info.name = prop.name;
     info.major = prop.major;
     info.minor = prop.minor;
-    return prop.major >= 8;
+    if (prop.major * 10 + prop.minor < 75)
+    {
+        info.error = "the CUDA backend requires compute capability 7.5 or newer";
+        return false;
+    }
+    // Check the actual compiled image too: a custom build may omit this GPU's architecture.
+    cudaFuncAttributes attributes{};
+    err = cudaFuncGetAttributes(&attributes, nntc_architecture_probe);
+    if (err != cudaSuccess)
+        return refused("CUDA kernel image compatibility (include this GPU in NNTC_CUDA_ARCHITECTURES)", err);
+    return true;
 }
 
 // Every cudaMalloc of the run goes through this, so the report can name the device memory the encode holds, and so
